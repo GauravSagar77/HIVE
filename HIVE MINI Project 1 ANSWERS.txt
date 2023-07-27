@@ -1,0 +1,160 @@
+Download Dataset 1 - https://drive.google.com/file/d/1WrG-9qv6atP-W3P_-gYln1hHyFKRKMHP/view
+
+Download Dataset 2 - https://drive.google.com/file/d/1-JIPCZ34dyN6k9CqJa-Y8yxIGq6vTVXU/view
+
+
+> 1. Create a schema based on the given dataset
+     
+    
+     create table agent_loging_report
+     (
+     sl_no int,
+     Agent string,
+     Dates string,
+     Login_time string,
+     Log_out string,
+     Duration string
+     )
+     row format delimited
+     fields terminated by ','
+     tblproperties ("skip.header.line.count"="1");
+    
+    create table agent_performance
+    (
+    S_No int,
+    Dates string,
+    Agent string,
+    Total_chats int,
+    avg_response_time string,
+    avg_resolution_time string,
+    avg_rating float,
+    Total_feedback int
+    )
+    row format delimited
+    fields terminated by ','
+    tblproperties ("skip.header.line.count"="1");
+
+
+> 2. Dump the data inside the hdfs in the given schema location.
+    
+     hadoop fs -mkdir /hive_mini_project
+   
+     hadoop fs -put /config/workspace/AgentLogingReport.csv /hive_mini_project
+     hadoop fs -put /config/workspace/AgentPerformance.csv /hive_mini_project
+     
+     # loading data from hdfs to hive table
+     load data inpath 'file:////config/workspace/AgentLogingReport.csv' into table agent_loging_report;
+     load data inpath 'file:////config/workspace/AgentPerformance.csv' into table agent_performance;
+    
+> 3. List of all agents' names. 
+     select Agent from agent_loging_report;
+     
+> 4. Find out agent average rating.
+     select avg(avg_rating) from agent_performance;
+      
+> 5. Total working days for each agents
+     select Agent, count(distinct Dates) as total_working_days from agent_loging_report;
+     
+      
+> 6. Total query that each agent have taken
+     select Agent, sum(Total_chats) as Total_query from agent_performance
+	 group by Agent;
+     
+      
+> 7. Total Feedback that each agent have received.
+     select Agent, sum(Total_feedback) as Total_feedback from agent_performance
+	 group by Agent;
+     
+     
+> 8. Agent name who have average rating between 3.5 to 4 
+     select Agent from agent_performance where avg_rating between 3.5 to 4;
+     
+> 9. Agent name who have rating less than 3.5 
+     select Agent from agent_performance where avg_rating < 3.5;
+     
+> 10. Agent name who have rating more than 4.5 
+      select Agent from agent_performance where avg_rating > 4.5;
+      
+> 11. How many feedback agents have received more than 4.5 average.
+      select Agent, sum(Total_feedback) from agent_performance where avg_rating > 4.5;
+      
+       
+> 12. Average weekly response time for each agent.
+        select Agent, weekofyear(Dates) as week_no, AVG(avg_response_time)
+        from agent_performance
+        group by agent_name, weekofyear(Dates);
+
+      
+> 13. Average weekly resolution time for each agents.
+      select Agent, date_format(Dates,'W') week_no, 
+      avg((split(avg_resolution_time,':')[0]*3600 +split(avg_resolution_time,':')[1]*60+split(avg_resolution_time,':')[2] )/3600) avg_weekly_resolution_time
+      from agent_performance group by 1,2;
+      
+      
+> 14. Find the number of chat on which they have received a feedback.
+      select Agent, sum(Total_chats) as number_of_chat from agent_performance where Total_feedback > 0;
+      
+      
+> 15. Total contribution hour for each and every agents weekly basis.
+      select Agent, weekofyear(Dates) as week_no, (sum(Duration)/60)/60 as hours_worked
+      from agent_loging_report
+      group by Agent, weekofyear(Dates);
+      
+> 16. Perform inner join, left join and right join based on the agent column and after joining the table export that data into your local system.
+      
+	  => Inner Join
+      insert overwrite local directory '/User/workspace/inner.csv' 
+	  row format delimited 
+	  fields terminated by ',' 
+      select * from agent_loging_report inner join  agent_performance on agent_loging_report.Agent = agent_performance.Agent; 
+      	  
+      => Left Join
+      insert overwrite local directory '/User/workspace/left.csv' 
+	  row format delimited 
+	  fields terminated by ',' 
+      select * from agent_loging_report left join  agent_performance on agent_loging_report.Agent = agent_performance.Agent;
+      
+	  => Right Join
+      insert overwrite local directory '/User/workspace/right.csv' 
+	  row format delimited 
+	  fields terminated by ',' 
+      select * from agent_loging_report right join  agent_performance on agent_loging_report.Agent = agent_performance.Agent; 
+      
+      
+      => Outer Join
+      insert overwrite local directory '/User/workspace/outer.csv' 
+	  row format delimited 
+	  fields terminated by ',' 
+      select * from agent_loging_report outer join  agent_performance  on agent_loging_report.Agent = agent_performance.Agent;
+      
+     
+      
+> 17. Perform partitioning on top of the agent column and then on top of that perform bucketing for each partitioning.
+      
+      hive> set hive.exec.dynamic.partition=true;
+      hive> set hive.exec.dynamic.partition.mode=nonstrict;
+
+	  
+	  create table agent_loging_part
+      (
+      sl_no int,
+      Dates string,
+      Loging_time string,
+      Log_out string,
+      Duration string
+      )
+      partitioned by (Agent string)
+	  clustered by (Dates)
+      sorted by (Duration)
+      into 20 buckets
+      row format delimited
+      fields terminated by ',';
+      
+      hive> insert overwrite table agent_loging_part partition(Agent) select  sl_no,Dates,Loging_time,Log_out,Duration,Agent 
+	  from agent_loging_report;
+      
+      
+      
+      
+      
+
